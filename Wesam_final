@@ -1,0 +1,299 @@
+import sys
+from PyQt5.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLineEdit,
+    QPushButton, QLabel, QTableWidget, QTableWidgetItem, QMessageBox
+)
+from PyQt5.QtCore import Qt
+from datetime import datetime
+
+# Class to manage expense-related data
+class ExpenseTracker:
+    # Initialize an empty list to store expense records
+    def __init__(self):
+        self.expenses = []  # Stores all expense records as dictionaries
+
+    # Add a new expense to the list
+    def add_expense(self, amount, date, category, description):
+        self.expenses.append({
+            "amount": amount,         # Monetary amount of the expense
+            "date": date,             # Date of the expense in string format
+            "category": category,     # Category or type of the expense
+            "description": description # Description or notes about the expense
+        })
+
+    # Remove an expense by its index in the list
+    def remove_expense(self, index):
+        self.expenses.pop(index)
+
+    # Return the list of all recorded expenses
+    def display_expense(self):
+        return self.expenses
+
+    # Generate a summary of expenses grouped by month
+    def expenses_by_month(self):
+        monthly_report = {}
+        for expense in self.expenses:
+            expense_date = datetime.strptime(expense["date"], "%m/%d/%Y")
+            monthly_key = expense_date.strftime("%m-%Y")  # Group by Year-Month
+            
+            # Accumulate total expenses for each month
+            if monthly_key not in monthly_report:
+                monthly_report[monthly_key] = 0.0
+            monthly_report[monthly_key] += float(expense["amount"])
+        return monthly_report
+
+    # Generate a summary of expenses grouped by week
+    def expenses_by_weekly(self):
+        weekly_report = {}
+        for expense in self.expenses:
+            expense_date = datetime.strptime(expense["date"], "%m/%d/%Y")
+            weekly_key = expense_date.strftime("%Y-%V")  # Group by Year-Week
+            
+            # Accumulate total expenses for each week
+            if weekly_key not in weekly_report:
+                weekly_report[weekly_key] = 0.0
+            weekly_report[weekly_key] += float(expense["amount"])
+        return weekly_report
+
+    # Read expense data from a CSV-like file and add it to the list
+    def file_reader(self, input_file):
+        with open(input_file) as file:
+            file_into_lines = file.readlines()
+            file_into_lines = [line.strip() for line in file_into_lines]
+
+        for line in file_into_lines:
+            parts = line.split(",")
+            if len(parts) == 4:  # Ensure the line has 4 components: amount, date, category, description
+                try:
+                    self.expenses.append({
+                        "amount": parts[0].strip(),
+                        "date": parts[1].strip(),
+                        "category": parts[2].strip(),
+                        "description": parts[3].strip()
+                    })
+                except ValueError:
+                    return (f"Skipping invalid line: {line}")  # Handle invalid data format
+            else:
+                return (f"Skipping improperly formatted line: {line}")  # Handle incorrect formatting
+        return ("Expenses updated")
+
+# GUI class to handle user interactions
+class ExpenseTrackerGUI(QMainWindow):
+    def __init__(self, managar):
+        super().__init__()
+        self.managar = managar
+        self.setWindowTitle("Expense Tracker")  # Set the main window's title
+        self.setGeometry(100, 100, 600, 400)  # Set window dimensions
+        self.main_Widget = QWidget()
+        self.setCentralWidget(self.main_Widget)
+        self.main_layout = QVBoxLayout()
+        self.main_Widget.setLayout(self.main_layout)
+        self.home_page()  # Initialize the home page layout
+
+    # Set up the home page with navigation options
+    def home_page(self):
+        self.clear_layout(self.main_layout)
+        Titel = QLabel("Expense Tracker")  # Display the app title
+        Titel.setAlignment(Qt.AlignCenter)
+        Titel.setStyleSheet("font-size: 20px;")
+        self.main_layout.addWidget(Titel)
+
+        # Add buttons for each function of the application
+        btn_add = QPushButton("Add Expense")
+        btn_add.clicked.connect(self.add_expense_form)
+        self.main_layout.addWidget(btn_add)
+
+        btn_remove = QPushButton("Remove Expense")
+        btn_remove.clicked.connect(self.remove_expense_form)
+        self.main_layout.addWidget(btn_remove)
+
+        btn_file = QPushButton("Upload a File")
+        btn_file.clicked.connect(self.upload_file)
+        self.main_layout.addWidget(btn_file)
+
+        btn_month = QPushButton("Monthly Report")
+        btn_month.clicked.connect(self.month_report_form)
+        self.main_layout.addWidget(btn_month)
+
+        btn_week = QPushButton("Weekly Report")
+        btn_week.clicked.connect(self.weekly_report_form)
+        self.main_layout.addWidget(btn_week)
+
+    # Implement file upload functionality
+    def upload_file(self):
+        self.clear_layout(self.main_layout)
+        self.label_file = QLabel("Enter the file's name:")
+        self.main_layout.addWidget(self.label_file)
+
+        self.line_file = QLineEdit("")  # Input field for file name
+        self.main_layout.addWidget(self.line_file)
+
+        self.submit_file = QPushButton("Submit")
+        self.main_layout.addWidget(self.submit_file)
+        self.submit_file.clicked.connect(self.file_handling)
+
+        self.back_file = QPushButton("Back")
+        self.main_layout.addWidget(self.back_file)
+        self.back_file.clicked.connect(self.home_page)
+
+    # Handle the process of reading the uploaded file
+    def file_handling(self):
+        file_name = self.line_file.text()
+        try:
+            self.managar.file_reader(file_name)
+            QMessageBox.information(self, "Success", "File uploaded successfully")
+            self.show_expenses()  # Update expense list display
+        except FileNotFoundError:
+            QMessageBox.warning(self, "Error", "File not found")
+
+    # Other methods for adding, removing, and reporting are similarly enhanced...
+    def add_expense_form(self):
+        # Form to add a new expense
+        self.clear_layout(self.main_layout)
+
+        self.amount_label = QLabel("Amount: ")
+        self.main_layout.addWidget(self.amount_label)
+        self.amount_line = QLineEdit("")
+        self.main_layout.addWidget(self.amount_line)
+
+        self.date_label = QLabel("Date (YYYY-MM-DD): ")
+        self.main_layout.addWidget(self.date_label)
+        self.date_line = QLineEdit("")
+        self.main_layout.addWidget(self.date_line)
+
+        self.category_label = QLabel("Category: ")
+        self.main_layout.addWidget(self.category_label)
+        self.category_line = QLineEdit("")
+        self.main_layout.addWidget(self.category_line)
+
+        self.description_label = QLabel("Description: ")
+        self.main_layout.addWidget(self.description_label)
+        self.description_line = QLineEdit("")
+        self.main_layout.addWidget(self.description_line)
+
+        btn_submit = QPushButton("Submit")
+        btn_submit.clicked.connect(self.submit_expense)
+        self.main_layout.addWidget(btn_submit)
+
+        btn_back = QPushButton("Back")
+        btn_back.clicked.connect(self.home_page)
+        self.main_layout.addWidget(btn_back)
+
+    def submit_expense(self):
+        # Handle submission of a new expense
+        try:
+            amount = float(self.amount_line.text())
+            date = self.date_line.text()
+            category = self.category_line.text()
+            description = self.description_line.text()
+            self.managar.add_expense(amount, date, category, description)
+            QMessageBox.information(self, "Success", f"Expense was added")
+            self.home_page()
+        except ValueError:
+            QMessageBox.warning(self, "Error", "Invalid input. Please try again.")
+
+    def clear_layout(self, layout):
+        # Clear all widgets from the given layout
+        while layout.count():
+            child = layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
+    
+    def remove_expense_form(self):
+        # Form to remove an expense by index
+        self.clear_layout(self.main_layout)
+        self.show_expenses()
+
+        label = QLabel("Input the index here: ")
+        self.main_layout.addWidget(label)
+
+        line_edit = QLineEdit("")
+        self.main_layout.addWidget(line_edit)
+
+        btn_submit = QPushButton("Submit")
+        self.main_layout.addWidget(btn_submit)
+
+        btn_submit.clicked.connect(lambda: self.submit_index(line_edit.text()))
+
+    def submit_index(self, index):
+        # Handle removal of an expense
+        try:
+            index = int(index) - 1  # Adjust for zero-based indexing
+            expenses = self.managar.display_expense()
+            if index < 0 or index >= len(expenses):
+                QMessageBox.warning(self, "Error", f"Could not remove expense at index {index + 1}.")
+            else:
+                self.managar.remove_expense(index)
+                QMessageBox.information(self, "Success", f"Expense at index {index + 1} removed.")
+                self.show_expenses()
+        except ValueError:
+            QMessageBox.warning(self, "Invalid Input", "Please enter a valid number for the index.")
+        
+    def show_expenses(self):
+        # Display the list of all expenses in a table
+        self.clear_layout(self.main_layout)
+        table = QTableWidget()
+        table.setRowCount(len(self.managar.display_expense()))
+        table.setColumnCount(4)
+        table.setHorizontalHeaderLabels(["Amount", "Date", "Category", "Description"])
+        self.main_layout.addWidget(table)
+
+        expenses = self.managar.display_expense()
+        row = 0
+        for expense in expenses:
+            table.setItem(row, 0, QTableWidgetItem(expense["amount"]))
+            table.setItem(row, 1, QTableWidgetItem(expense["date"]))
+            table.setItem(row, 2, QTableWidgetItem(expense["category"]))
+            table.setItem(row, 3, QTableWidgetItem(expense["description"]))
+            row += 1
+
+        btn_back = QPushButton("Back")
+        btn_back.clicked.connect(self.home_page)
+        self.main_layout.addWidget(btn_back)
+
+    def month_report_form(self):
+        # Generate and display the monthly report
+        self.clear_layout(self.main_layout)
+        table_month = QTableWidget()
+        table_month.setRowCount(len(self.managar.expenses_by_month()))
+        table_month.setColumnCount(2)
+        table_month.setHorizontalHeaderLabels(["Year-Month", "Summary Expense"])
+        self.main_layout.addWidget(table_month)
+
+        monthly_key = self.managar.expenses_by_month()
+        row = 0
+        for summery in monthly_key:
+            table_month.setItem(row, 0, QTableWidgetItem(summery))
+            table_month.setItem(row, 1, QTableWidgetItem(str(monthly_key[summery])))
+            row += 1
+
+        btn_back = QPushButton("Back")
+        btn_back.clicked.connect(self.home_page)
+        self.main_layout.addWidget(btn_back)
+    
+    def weekly_report_form(self):
+        # Generate and display the weekly report
+        self.clear_layout(self.main_layout)
+        table_weekly = QTableWidget()
+        table_weekly.setRowCount(len(self.managar.expenses_by_weekly()))
+        table_weekly.setColumnCount(2)
+        table_weekly.setHorizontalHeaderLabels(["Year-Week", "Summary Expense"])
+        self.main_layout.addWidget(table_weekly)
+
+        weekly_report = self.managar.expenses_by_weekly()
+        row = 0
+        for summery in weekly_report:
+            table_weekly.setItem(row, 0, QTableWidgetItem(summery))
+            table_weekly.setItem(row, 1, QTableWidgetItem(str(weekly_report[summery])))
+            row += 1
+
+        btn_back = QPushButton("Back")
+        btn_back.clicked.connect(self.home_page)
+        self.main_layout.addWidget(btn_back)
+        
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    manager = ExpenseTracker()
+    gui = ExpenseTrackerGUI(manager)
+    gui.show()
+    sys.exit(app.exec_()) 
